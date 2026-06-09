@@ -145,7 +145,6 @@
             outline: none;
         }
 
-        /* Vùng hiển thị kết quả so màu */
         .result-display {
             padding: 15px;
             border: 1px dashed var(--border);
@@ -169,7 +168,6 @@
             margin-right: 5px;
         }
 
-        /* Khu vực tra cứu IPA */
         .ipa-section {
             background-color: #eff6ff;
             border: 1px solid #bfdbfe;
@@ -224,9 +222,279 @@
             </div>
             
             <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 5px;">
-                <label style="font-weight: bold; font-size: 14px; color: #475569;">Nhập đoạn Phụ đề gốc (Script) của video tại đây để chấm điểm & gợi ý:</label>
+                <label style="font-weight: bold; font-size: 14px; color: #475569;">Nhập đoạn Phụ đề gốc (Script) của đoạn video này để đối chiếu & gợi ý:</label>
                 <input type="text" id="correctScript" placeholder="Ví dụ: Practice makes perfect. Spoken English will improve day by day.">
             </div>
         </div>
 
         <div class="controls">
+            <button class="btn-secondary" onclick="rewindSentence()">⏮ Nghe lại [Ctrl+Up]</button>
+            <button class="btn-secondary" id="playPauseBtn" onclick="togglePlay()">⏸ Tạm dừng [Ctrl+Space]</button>
+            <button class="btn-warning" onclick="checkAnswers()">🔍 Kiểm tra đúng sai</button>
+            <button class="btn-info" onclick="giveHint()">💡 Gợi ý chữ tiếp theo</button>
+            <button class="btn-success" onclick="nextSentence()">Qua câu tiếp theo [Ctrl+Right] ⏭</button>
+        </div>
+
+        <div class="typing-area">
+            <label style="font-weight: bold;">Nhập lại những gì anh nghe được:</label>
+            <textarea id="userInput" placeholder="Nghe đến đâu, gõ lại đến đó..."></textarea>
+            
+            <label style="font-weight: bold; margin-top: 5px;">Kết quả đánh giá chi tiết:</label>
+            <div class="result-display" id="resultDisplay">Hệ thống sẽ tô màu chữ tại đây sau khi anh bấm nút "Kiểm tra đúng sai".</div>
+
+            <div class="ipa-section">
+                <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #1e40af;">🔍 Tra cứu phiên âm quốc tế nhanh (IPA):</label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="ipaInput" placeholder="Nhập từ cần xem phiên âm (Ví dụ: native)..." style="background: white;">
+                    <button class="btn-secondary" style="padding: 10px 20px;" onclick="searchIPA()">Xem IPA</button>
+                </div>
+                <div id="ipaResult" style="margin-top: 10px; font-size: 16px; font-weight: 500; color: #1e3a8a;"></div>
+            </div>
+
+            <div class="guide-box">
+                <strong>⌨ Phím tắt thông minh điều khiển thần tốc:</strong>
+                <div style="margin-top: 5px;">
+                    • <code>Ctrl + Phím Cách (Space)</code>: Tạm dừng hoặc tiếp tục phát video.<br>
+                    • <code>Ctrl + Mũi tên Lên (Up)</code>: Tua lại từ đầu đoạn đang nghe.<br>
+                    • <code>Ctrl + Mũi tên Phải (Right)</code>: Chuyển câu tiếp theo (Tự động xóa ô nhập để gõ câu mới).
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Nhúng YouTube API chính xác
+    var tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    var player;
+    var sentenceStartTime = 0;
+    var autoPauseTimer;
+
+    function getYouTubeId(url) {
+        var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        var match = url.match(regExp);
+        return (match && match[2].length == 11) ? match[2] : null;
+    }
+
+    function loadVideo() {
+        var url = document.getElementById('youtubeUrl').value;
+        var videoId = getYouTubeId(url);
+
+        if (!videoId) {
+            alert('Đường dẫn YouTube không hợp lệ, anh vui lòng kiểm tra lại!');
+            return;
+        }
+
+        document.getElementById('mainLayout').style.display = 'flex';
+
+        if (player && typeof player.loadVideoById === 'function') {
+            player.loadVideoById(videoId);
+            resetApp();
+        } else {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: videoId,
+                playerVars: {
+                    'playsinline': 1,
+                    'cc_load_policy': 0,
+                    'rel': 0
+                },
+                events: {
+                    'onReady': function() { resetApp(); },
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+    }
+
+    function onPlayerStateChange(event) {
+        var btn = document.getElementById('playPauseBtn');
+        if (event.data == YT.PlayerState.PLAYING) {
+            btn.innerHTML = "⏸ Tạm dừng [Ctrl + Space]";
+            startAutoPauseTracker();
+        } else {
+            btn.innerHTML = "▶ Tiếp tục phát [Ctrl + Space]";
+            clearInterval(autoPauseTimer);
+        }
+    }
+
+    function resetApp() {
+        sentenceStartTime = 0;
+        document.getElementById('userInput').value = "";
+        document.getElementById('resultDisplay').innerHTML = "Hệ thống sẽ tô màu chữ tại đây sau khi anh bấm nút \"Kiểm tra đúng sai\".";
+        setTimeout(function(){
+            document.getElementById('userInput').focus();
+        }, 500);
+    }
+
+    function rewindSentence() {
+        if (player && typeof player.seekTo === 'function') {
+            player.seekTo(sentenceStartTime, true);
+            player.playVideo();
+            document.getElementById('userInput').focus();
+        }
+    }
+
+    function nextSentence() {
+        if (player && typeof player.getCurrentTime === 'function') {
+            sentenceStartTime = player.getCurrentTime();
+            document.getElementById('userInput').value = "";
+            document.getElementById('resultDisplay').innerHTML = "Hệ thống sẽ tô màu chữ tại đây sau khi anh bấm nút \"Kiểm tra đúng sai\".";
+            player.playVideo();
+            document.getElementById('userInput').focus();
+        }
+    }
+
+    function togglePlay() {
+        if (!player || typeof player.getPlayerState !== 'function') return;
+        if (player.getPlayerState() == YT.PlayerState.PLAYING) {
+            player.pauseVideo();
+        } else {
+            player.playVideo();
+        }
+    }
+
+    function toggleAutoPause() {
+        var isChecked = document.getElementById('autoPauseCheck').checked;
+        document.getElementById('timeSetting').style.display = isChecked ? 'flex' : 'none';
+    }
+
+    function startAutoPauseTracker() {
+        clearInterval(autoPauseTimer);
+        autoPauseTimer = setInterval(function() {
+            var isChecked = document.getElementById('autoPauseCheck').checked;
+            if (isChecked && player && typeof player.getCurrentTime === 'function') {
+                var currentTime = player.getCurrentTime();
+                var interval = parseFloat(document.getElementById('pauseInterval').value) || 5;
+                
+                if (currentTime - sentenceStartTime >= interval) {
+                    player.pauseVideo();
+                }
+            }
+        }, 200);
+    }
+
+    // Làm sạch từ (bỏ dấu câu, viết thường) để đối chiếu chính xác ký tự chữ
+    function cleanWord(word) {
+        if(!word) return "";
+        return word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"").toLowerCase().trim();
+    }
+
+    // KIỂM TRA ĐÚNG SAI VÀ TÔ MÀU XANH / ĐỎ
+    function checkAnswers() {
+        var userText = document.getElementById('userInput').value.trim();
+        var correctText = document.getElementById('correctScript').value.trim();
+        
+        if (!correctText) {
+            alert("Anh vui lòng nhập đoạn phụ đề gốc vào ô cấu hình phía trên để hệ thống đối chiếu nhé!");
+            return;
+        }
+
+        var userWords = userText ? userText.split(/\s+/) : [];
+        var correctWords = correctText.split(/\s+/);
+        var resultHtml = "";
+
+        for (var i = 0; i < correctWords.length; i++) {
+            if (i < userWords.length) {
+                if (cleanWord(userWords[i]) === cleanWord(correctWords[i])) {
+                    resultHtml += "<span class='word-correct'>" + correctWords[i] + "</span> ";
+                } else {
+                    resultHtml += "<span class='word-incorrect'>" + userWords[i] + "</span> " + "<span style='color:#64748b; font-size:14px; margin-right:10px;'>(" + correctWords[i] + ")</span>";
+                }
+            } else {
+                resultHtml += "<span style='color: #cbd5e1;'>_ </span>";
+            }
+        }
+        document.getElementById('resultDisplay').innerHTML = resultHtml;
+    }
+
+    // GỢI Ý TỪ TIẾP THEO
+    function giveHint() {
+        var userText = document.getElementById('userInput').value.trim();
+        var correctText = document.getElementById('correctScript').value.trim();
+
+        if (!correctText) {
+            alert("Anh vui lòng điền phụ đề gốc vào ô phía trên để lấy dữ liệu gợi ý.");
+            return;
+        }
+
+        var userWords = userText ? userText.split(/\s+/) : [];
+        var correctWords = correctText.split(/\s+/);
+
+        var nextWordIndex = userWords.length;
+        if (nextWordIndex < correctWords.length) {
+            var nextWord = correctWords[nextWordIndex];
+            document.getElementById('userInput').value = (userText + " " + nextWord).trim();
+            document.getElementById('userInput').focus();
+        } else {
+            alert("Anh đã gõ hoàn thành toàn bộ số từ trong đoạn phụ đề rồi!");
+        }
+    }
+
+    // TRA CỨU PHIÊN ÂM IPA
+    function searchIPA() {
+        var word = document.getElementById('ipaInput').value.trim();
+        var resultDiv = document.getElementById('ipaResult');
+        
+        if (!word) {
+            resultDiv.innerHTML = "Vui lòng nhập một từ cụ thể.";
+            return;
+        }
+
+        resultDiv.innerHTML = "🔄 Đang tra cứu phiên âm...";
+
+        fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${cleanWord(word)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data[0]) {
+                    var phonetic = data[0].phonetic || "";
+                    
+                    if (!phonetic && data[0].phonetics) {
+                        for (var p of data[0].phonetics) {
+                            if (p.text) {
+                                phonetic = p.text;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (phonetic) {
+                        if (!phonetic.startsWith('/')) phonetic = '/' + phonetic;
+                        if (!phonetic.endsWith('/')) phonetic = phonetic + '/';
+                        resultDiv.innerHTML = `Ký tự IPA của từ <strong>${word}</strong> là: <span style="color: #2563eb; font-size: 18px;">${phonetic}</span>`;
+                    } else {
+                        resultDiv.innerHTML = `Tìm thấy từ nhưng dữ liệu từ điển trực tuyến chưa có sẵn ký tự IPA cho từ này.`;
+                    }
+                } else {
+                    resultDiv.innerHTML = "❌ Không tìm thấy từ này trong từ điển. Anh hãy kiểm tra lại mặt chữ nhé!";
+                }
+            })
+            .catch(err => {
+                resultDiv.innerHTML = "⚠️ Lỗi kết nối dữ liệu hệ thống từ điển.";
+            });
+    }
+
+    // Cài đặt phím tắt bàn phím
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey) {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlay();
+            } else if (e.code === 'ArrowUp') {
+                e.preventDefault();
+                rewindSentence();
+            } else if (e.code === 'ArrowRight') {
+                e.preventDefault();
+                nextSentence();
+            }
+        }
+    });
+</script>
+
+</body>
+</html>
