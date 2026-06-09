@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ứng Dụng Luyện Nghe & Chép Chính Tả YouTube</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --border: #cbd5e1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 850px;
+            background: var(--card);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05);
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #0f172a;
+            text-align: center;
+            font-size: 24px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        button {
+            padding: 14px 24px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .main-layout {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .video-box {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            border-radius: 12px;
+            background: #000;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .video-box iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .config-panel {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #f1f5f9;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .btn-secondary {
+            background-color: #475569;
+        }
+        .btn-secondary:hover {
+            background-color: #334155;
+        }
+        .btn-success {
+            background-color: #10b981;
+        }
+        .btn-success:hover {
+            background-color: #059669;
+        }
+
+        .typing-area {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 15px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-size: 16px;
+            line-height: 1.5;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        textarea:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .guide-box {
+            background-color: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #475569;
+            line-height: 1.6;
+        }
+
+        .guide-box code {
+            background: #e2e8f0;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #0f172a;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Chép Chính Tả Tiếng Anh Qua YouTube</h2>
+    
+    <div class="input-group">
+        <input type="text" id="youtubeUrl" placeholder="Dán link video tiếng Anh vào đây...">
+        <button onclick="loadVideo()">Tải Bài Nghe</button>
+    </div>
+
+    <div class="main-layout" id="mainLayout">
+        
+        <div class="video-box">
+            <div id="player"></div>
+        </div>
+
+        <div class="config-panel">
+            <label style="font-weight: 500;">
+                <input type="checkbox" id="autoPauseCheck" onchange="toggleAutoPause()"> Tự động dừng sau mỗi câu ngắn
+            </label>
+            <div id="timeSetting" style="display: none; align-items: center; gap: 5px;">
+                (Khoảng <input type="number" id="pauseInterval" value="5" min="2" max="30" style="width: 45px; padding: 4px; text-align: center; border-radius: 4px; border: 1px solid var(--border);"> giây)
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-secondary" onclick="rewindSentence()">⏮ Nghe lại câu [Ctrl + Up]</button>
+            <button class="btn-secondary" id="playPauseBtn" onclick="togglePlay()">⏸ Tạm dừng [Ctrl + Space]</button>
+            <button class="btn-success" onclick="nextSentence()">Qua câu tiếp theo [Ctrl + Right] ⏭</button>
+        </div>
+
+        <div class="typing-area">
+            <label style="font-weight: bold;">Nhập lại những gì anh nghe được (Tập trung chính xác từng ký tự):</label>
+            <textarea id="userInput" placeholder="Nghe đến đâu, gõ lại đến đó..."></textarea>
+            
+            <div class="guide-box">
+                <strong>⌨ Phím tắt thông minh khi đang gõ chữ (Không cần chạm chuột):</strong>
+                <div style="margin-top: 5px;">
+                    • <code>Ctrl + Phím Cách (Space)</code>: Tạm dừng hoặc tiếp tục phát video.<br>
+                    • <code>Ctrl + Mũi tên Lên (Up)</code>: Tua lại từ đầu câu hiện tại để kiểm tra lại mặt chữ.<br>
+                    • <code>Ctrl + Mũi tên Phải (Right)</code>: Bắt đầu câu tiếp theo (Hệ thống sẽ tự động xóa chữ cũ để gõ câu mới).
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Nhúng YouTube API
+    var tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    var player;
+    var sentenceStartTime = 0;
+    var autoPauseTimer;
+
+    function getYouTubeId(url) {
+        var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        var match = url.match(regExp);
+        return (match && match[2].length == 11) ? match[2] : null;
+    }
+
+    function loadVideo() {
+        var url = document.getElementById('youtubeUrl').value;
+        var videoId = getYouTubeId(url);
+
+        if (!videoId) {
+            alert('Đường dẫn YouTube không hợp lệ, anh vui lòng kiểm tra lại!');
+            return;
+        }
+
+        document.getElementById('mainLayout').style.display = 'flex';
+
+        if (player && typeof player.loadVideoById === 'function') {
+            player.loadVideoById(videoId);
+            resetApp();
+        } else {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: videoId,
+                playerVars: {
+                    'playsinline': 1,
+                    'cc_load_policy': 0, // Tắt phụ đề để ép tai phải nghe
+                    'rel': 0
+                },
+                events: {
+                    'onReady': function() { resetApp(); },
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+    }
+
+    function onPlayerStateChange(event) {
+        var btn = document.getElementById('playPauseBtn');
+        if (event.data == YT.PlayerState.PLAYING) {
+            btn.innerHTML = "⏸ Tạm dừng [Ctrl + Space]";
+            startAutoPauseTracker();
+        } else {
+            btn.innerHTML = "▶ Tiếp tục phát [Ctrl + Space]";
+            clearInterval(autoPauseTimer);
+        }
+    }
+
+    function resetApp() {
+        sentenceStartTime = 0;
+        document.getElementById('userInput').value = "";
+        document.getElementById('userInput').focus();
+    }
+
+    function rewindSentence() {
+        if (player && typeof player.seekTo === 'function') {
+            player.seekTo(sentenceStartTime, true);
+            player.playVideo();
+            document.getElementById('userInput').focus();
+        }
+    }
+
+    function nextSentence() {
+        if (player && typeof player.getCurrentTime === 'function') {
+            sentenceStartTime = player.getCurrentTime();
+            document.getElementById('userInput').value = "";
+            player.playVideo();
+            document.getElementById('userInput').focus();
+        }
+    }
+
+    function togglePlay() {
+        if (!player || typeof player.getPlayerState !== 'function') return;
+        if (player.getPlayerState() == YT.PlayerState.PLAYING) {
+            player.pauseVideo();
+        } else {
+            player.playVideo();
+        }
+    }
+
+    function toggleAutoPause() {
+        var isChecked = document.getElementById('autoPauseCheck').checked;
+        document.getElementById('timeSetting').style.display = isChecked ? 'flex' : 'none';
+    }
+
+    // Bộ giám sát thời gian tự động dừng câu
+    function startAutoPauseTracker() {
+        clearInterval(autoPauseTimer);
+        autoPauseTimer = setInterval(function() {
+            var isChecked = document.getElementById('autoPauseCheck').checked;
+            if (isChecked && player && typeof player.getCurrentTime === 'function') {
+                var currentTime = player.getCurrentTime();
+                var interval = parseFloat(document.getElementById('pauseInterval').value) || 5;
+                
+                if (currentTime - sentenceStartTime >= interval) {
+                    player.pauseVideo();
+                }
+            }
+        }, 200);
+    }
+
+    // Xử lý phím tắt tối ưu trên bàn phím
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey) {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlay();
+            } else if (e.code === 'ArrowUp') {
+                e.preventDefault();
+                rewindSentence();
+            } else if (e.code === 'ArrowRight') {
+                e.preventDefault();
+                nextSentence();
+            }
+        }
+    });
+</script>
+
+</body>
+</html>
