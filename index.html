@@ -193,6 +193,12 @@
             font-weight: bold;
             color: #0f172a;
         }
+
+        .script-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -222,8 +228,11 @@
             </div>
             
             <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 5px;">
-                <label style="font-weight: bold; font-size: 14px; color: #475569;">Nhập đoạn Phụ đề gốc (Script) của đoạn video này để đối chiếu & gợi ý:</label>
-                <input type="text" id="correctScript" placeholder="Ví dụ: Practice makes perfect. Spoken English will improve day by day.">
+                <label style="font-weight: bold; font-size: 14px; color: #475569;">Nhập đoạn Phụ đề gốc (Script) để chấm điểm & gợi ý:</label>
+                <div class="script-input-wrapper">
+                    <input type="text" id="correctScript" placeholder="Ví dụ: Practice makes perfect. Spoken English will improve day by day.">
+                    <button type="button" id="toggleScriptBtn" onclick="toggleScriptVisibility()" style="background-color: #64748b; padding: 12px 15px; white-space: nowrap; font-size: 14px;">👁️ Ẩn phụ đề</button>
+                </div>
             </div>
         </div>
 
@@ -264,7 +273,6 @@
 </div>
 
 <script>
-    // Nhúng YouTube API chính xác
     var tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
     var firstScriptTag = document.getElementsByTagName('script')[0];
@@ -379,13 +387,29 @@
         }, 200);
     }
 
-    // Làm sạch từ (bỏ dấu câu, viết thường) để đối chiếu chính xác ký tự chữ
+    // TÍNH NĂNG MỚI: ẨN / HIỆN PHỤ ĐỀ GỐC
+    function toggleScriptVisibility() {
+        var scriptInput = document.getElementById('correctScript');
+        var toggleBtn = document.getElementById('toggleScriptBtn');
+        
+        if (scriptInput.type === "text") {
+            // Chuyển sang dạng password để ẩn ký tự chữ đi thành các dấu chấm
+            scriptInput.type = "password";
+            toggleBtn.innerHTML = "👁️ Hiện phụ đề";
+            toggleBtn.style.backgroundColor = "#2563eb"; // Đổi màu để nhận diện
+        } else {
+            scriptInput.type = "text";
+            toggleBtn.innerHTML = "👁️ Ẩn phụ đề";
+            toggleBtn.style.backgroundColor = "#64748b";
+        }
+        document.getElementById('userInput').focus();
+    }
+
     function cleanWord(word) {
         if(!word) return "";
         return word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"").toLowerCase().trim();
     }
 
-    // KIỂM TRA ĐÚNG SAI VÀ TÔ MÀU XANH / ĐỎ
     function checkAnswers() {
         var userText = document.getElementById('userInput').value.trim();
         var correctText = document.getElementById('correctScript').value.trim();
@@ -413,7 +437,6 @@
         document.getElementById('resultDisplay').innerHTML = resultHtml;
     }
 
-    // GỢI Ý TỪ TIẾP THEO
     function giveHint() {
         var userText = document.getElementById('userInput').value.trim();
         var correctText = document.getElementById('correctScript').value.trim();
@@ -436,7 +459,6 @@
         }
     }
 
-    // TRA CỨU PHIÊN ÂM IPA
     function searchIPA() {
         var word = document.getElementById('ipaInput').value.trim();
         var resultDiv = document.getElementById('ipaResult');
@@ -479,7 +501,6 @@
             });
     }
 
-    // Cài đặt phím tắt bàn phím
     document.addEventListener('keydown', function(e) {
         if (e.ctrlKey) {
             if (e.code === 'Space') {
